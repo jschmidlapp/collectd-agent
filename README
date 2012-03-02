@@ -1,0 +1,87 @@
+collectd-agent
+==============
+
+collectd-agent is an application that allows SNMP managers to retrieve collectd
+statistics.  It acts as either a master or sub-agent and exposes a configurable
+set of statistics via SNMP.  Both scalar and table representations of statistics
+are supported.
+
+Installation
+============
+./configure
+make
+make install
+
+If collectd is not installed in a 'normal' location, you can specify the
+location (e.g. /opt/collectd) using the --with-libcollectdclient configure
+parameter.
+
+collectd-agent uses unix sockets to communicate with collectd and so the
+unixsock collectd plugin must be enabled.
+
+collectd requires Net-SNMP to be installed on the target computer.
+
+Configuration 
+============= 
+The agent's behavior is defined in the configuration file (by default
+/etc/collectd-agent.conf), which is intentionally similar to the collectd
+configuration format.  Three high level sections are allowed: Settings, Value
+and Table.  Only a single Settings section may be specified, but multiple Value
+and Table sections may be used.  An example configuration file is provided with
+the distribution (examples/example.conf).
+
+  Settings
+  --------
+  CollectdAddress address
+    This specifies the Unix socket that the collectd unixsock plugin uses.  You
+    can find the exact value in the collectd configuration file, but its usually
+    like /var/run/collectd-unixsock.
+ 
+  MasterAgent true|false
+    Specifies whether collectd-agent should run as a full SNMP agent
+    (standalone) or as a sub-agent to an existing master agent on the host.
+
+  AgentxAddress address
+    If running as a sub-agent, this specifies the address that collectd-agent
+    uses to communicate with the master agent.  By default for Net-SNMP this is
+    /var/agentx/master, but may be overridden in the system's snmpd.conf with
+    the agentXSocket option.
+
+  Value
+  -----
+  Each Value entry specifies a single scalar value that will be exposed.  The
+  Name is the full collectd statistic and the OID is the SNMP object ID that
+  will be used to retrieve the statistic.  The OID may be a full numeric value
+  or may use abbreviated, symbolic names such as SNMPv2-MIB::sysDescr.
+
+  Note that to use symbolic names, the correct MIBs must be installed on the
+  system.  This can be verified by ensuring that `snmptranslate` correctly
+  translate the symbolic name to a numeric OID.
+
+  The Type can be one of four values: Integer32, Counter32, Gauge32 and
+  Counter64.  It is up to the the user to ensure that the type of collectd
+  statistic, the SNMP MIB and the configuration all refer to the same underlying
+  type.
+ 
+  Table
+  -----
+  Each table entry starts with the root OID value.  This can be either number or
+  symbolic (see above).  The remaining entries specify all of the columns of the
+  table.  Each column entry specifies the column number (1,2,3...), the collectd
+  stat name and the type.  The collectd stat name should include a single '*'
+  that signifies the index for the table.  For instance, suppose you want to 
+  expose statistics regarding the number of bytes transferred on a series of 
+  network interfaces.  These stats look like hostname/interface-1/bytes, 
+  hostname/interface-2/bytes, etc.  The stat name entry in the column would be
+  hostname/interface-*/bytes.
+
+Issues
+======
+My original purpose for developing collectd-agent was to retrieve integer value
+statistics.  In the current version, there really isn't any support for
+representing floating point values at all.  To do this, there would probably
+need to be some kind of 'shift' parameter added to the configuration for each
+Value so that the floating point value could be converted to an integer value
+that SNMP could understand.
+
+At this point, collectd-agent has only been tested under Debian.

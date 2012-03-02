@@ -1,0 +1,98 @@
+
+This document gives a brief description of the high level design of
+collectd-agent.  This can be seperated into a number of pieces:
+
+1. Configuration
+2. SNMP agent
+3. collectd client
+
+Configuration
+=============
+The configuration file is described in the user documentation.  Flex
+and YACC are used to parse the config file.  The primary role of the
+parser is to fill out a number of configuration data structures
+(defined in data.h and declared in main.c):
+
+1. table_list:    This contains information about all of the tables
+                  that have been configured by the user, including
+                  the statistic name and types for each column.
+
+2. value_list:    A list of all the values configured by user, 
+                  including the mapping between OIDs and collectd names.
+
+3. user_settings: Misc user settings, such as SNMP master agent socket name, etc.
+
+SNMP agent
+==========
+
+The SNMP module will includes seperate handlers for tables and values.
+The value handler is fairly straightforward.  value_handler() is
+called for each SNMP GET.  The OID is included in the data structure
+passed in by the Net-SNMP library.  We search through the list of
+values configured by the user to find an entry with a matching OID.
+We then query collectd for the statistic name associated with that
+OID, and return the value to Net-SNMP which will cause the value to be
+returned to the SNMP manager.
+
+We use the Net-SNMP table iterator model, which is very roughly
+described at
+http://www.net-snmp.org/dev/agent/group__table__iterator.html.  (This
+seems like a pretty inefficient way to handle tables, but
+unfortunately I'm not familiar enough with other table access methods
+provided by Net-SNMP.  This is certainly an area that should be
+revisited)
+
+When the table iterator requests our first index
+(get_first_data_point) we populate a linked list of row_entry_t's, one
+for each index.  In our case, index corresponds to the wildcard
+specified by the user.  Populating this list requires that we retrieve
+a list of *all* the variables available from collectd, and matching
+each one against one of the statistic names by the user; the value
+matched by the wildcard is our index.  These don't have to be in any
+particular order - the table iterator deals with this for us.
+
+In the actual table handler, we take the user configured stat value
+for the specified column, replace the wildcard with the index for that
+particular row (passed to us by the table iterator), retrieve the stat
+value from collectd and set it on the request, which will cause
+Net-SNMP to pass it back to the SNMP manager.
+
+The SNMP module makes the assumption that all SNMP requests are
+serialized by the Net-SNMP core library.  That is, no locking is
+required to prevent concurrent accesses to the common data structures.
+
+collectd client
+===============
+
+We utilize the collectdclient library to access collectd via unix
+sockets.  Most of the functionality of this module is fairly
+straightforward as it directly utilizes the collectdclient library.
+The client.c module is also responsible for retrieving the list of
+statistics from collectd and creating a list of indexes for a given
+table configuration, which is used in the agent.c module to construct
+the actual SNMP tables (see above).  We do that by first retrieving
+the raw list and then iterating through the list, matching against a
+regex created from the user configuration for the first column (it
+doesn't matter which column we pick, as presumably all of the columns
+are equivalent from this point of view).  For efficiency, the regex's
+are precompiled the first time and cached on the snmp_table_t
+structure.
+
+Data structures
+===============
+data.h contains all of the data structures used in collectd.  Not
+surprisingly, they resemble the SNMP structure that they're exposing.
+Basically, each data structure contains the information needed to
+reference the lower level data structures as well as the information
+needed to access the actual statistics from collectd.
+
+snmp_table_list_t --> snmp_table_t
+	              snmp_table_t --> snmp_column_t
+                      ...              snmp_column_t  
+	              snmp_table_t     ...
+                                       snmp_column_t
+
+snmp_value_list_t -> snmp_value_t
+	             snmp_value_t
+                     ...
+	             snmp_value_t
