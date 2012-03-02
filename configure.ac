@@ -1,4 +1,4 @@
-AC_INIT([collectd-snmpd],[1.0])
+AC_INIT([collectd-agent],[1.0])
 AM_INIT_AUTOMAKE
 AC_CONFIG_SRCDIR([.])
 AC_CONFIG_FILES([Makefile src/Makefile])
