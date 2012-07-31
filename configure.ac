@@ -12,7 +12,18 @@ AC_CHECK_LIB(netsnmp,init_snmp, [],
 
 CFLAGS="-Wall -g"
 
-SNMP_CONFIG="net-snmp-config"
+AC_ARG_WITH(net-snmp-config, [AS_HELP_STRING([--with-net-snmp-config@<:@=PREFIX@:>@], [Path to net-snmp-config])],
+[
+  SNMP_CONFIG=$withval
+],
+[
+  SNMP_CONFIG="net-snmp-config"
+])
+
+#if test "$SNMP_CONFIG" = ""; then
+#  SNMP_CONFIG="net-snmp-config"
+#fi
+
 SNMP_CFLAGS=""
 SNMP_LIBS=""
 SNMP_FOUND="no"
